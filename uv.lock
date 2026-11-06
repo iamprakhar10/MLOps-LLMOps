@@ -1298,13 +1298,17 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "ipykernel" },
+    { name = "matplotlib" },
     { name = "mlflow" },
+    { name = "scikit-learn" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "ipykernel", specifier = ">=7.4.0" },
+    { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "mlflow", specifier = ">=3.18.0" },
+    { name = "scikit-learn", specifier = ">=1.9.1" },
 ]
 
 [[package]]
