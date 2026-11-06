@@ -350,3 +350,49 @@ MLflow can capture the execution of these functions and their nested operations 
 You can inspect those traces in its UI.
 
 This is particularly useful when your application has multiple components and you need to debug failures
+
+
+#### 1. The Backend REST API (The Data Receiver)
+When your Python script or Jupyter notebook runs mlflow.log_metric("accuracy", 0.95) or mlflow.log_artifact(), it isn't writing directly to a static file on disk (unless you are running MLflow in purely local file-store mode without a server).
+
+Instead, your client code is acting as an HTTP client, making REST API calls (POST /api/2.0/mlflow/runs/log-parameter, etc.) over HTTP to that server running on port 5000. The server receives those requests and writes them to a backend database (like SQLite or PostgreSQL) and an artifact store (like a local folder or an S3 bucket).
+
+
+#### The Frontend UI (The Visual Dashboard)
+The web interface you see in your browser (built with a React frontend) is served by that exact same server process.
+
+When you open [http://127.0.0.1:5000](http://127.0.0.1:5000) in Google Chrome, the frontend app loads in your browser.
+
+As you click around to compare runs, view loss curves, or check model versions, your browser's frontend JavaScript makes asynchronous API requests back to those same REST endpoints to fetch and render the experiment data.
+
+
+#### So every experiment is getting stored in mlflow.db?
+
+Yes, exactly—by default!
+
+When you run an MLflow tracking server locally without specifying a custom database configuration, it automatically defaults to storing all experiment metadata in a local SQLite database named mlflow.db (created right in your current working directory).
+
+However, it is important to distinguish what goes into mlflow.db versus what goes elsewhere:
+
+1. What goes into mlflow.db (Metadata Store)
+- The SQLite file handles metadata only:
+- Experiment names and IDs
+- Run IDs, start/end timestamps, statuses, and tags
+- Hyperparameters and configuration settings (mlflow.log_param())
+- Evaluation metrics (mlflow.log_metric())
+- Model Registry tracking data (versions, stages)
+
+2. What does NOT go into mlflow.db (Artifact Store)
+
+Heavy files—such as trained model weights (like serialized .pkl or .safetensors files), plots, dataset snapshots, or large text logs—are too bulky to store efficiently inside a relational database row.
+
+Instead, those heavy files are saved separately in an Artifact Store (which defaults to a local folder like ./mlartifacts or ./mlruns on your machine, or an S3/GCS bucket if you are configured for production).
+
+When you log a model artifact, two things happen:
+
+The physical file is saved to the artifact storage directory.
+
+A pointer record (the file path or URI pointing to that artifact) is written to mlflow.db.
+
+Scaling Beyond mlflow.db
+While SQLite (mlflow.db) is fantastic for local development, solo projects, and testing, enterprise environments switch the backend store URI (--backend-store-uri) to a production-grade relational database like PostgreSQL or MySQL to handle high concurrent writes from multiple team members or CI/CD pipelines.
