@@ -1,0 +1,9 @@
+.env
+
+# Python
+.venv/
+__pycache__/
+
+# MLflow local tracking data and artifacts
+mlruns/
+mlflow.db*
