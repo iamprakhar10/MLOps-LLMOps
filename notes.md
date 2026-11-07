@@ -96,6 +96,9 @@ training_loss = 0.21
 validation_loss = 0.28
 
 3. Artifacts
+artifacts are any files, objects, or binary outputs generated during an experiment run that you need to save, track, and associate with that specific training iteration.
+
+While metrics (like accuracy or loss) and parameters (like learning rate) are small text-based data points stored in your relational metadata database (mlflow.db), artifacts are the heavy files and physical payloads that represent the actual deliverables of your code.
 
 Files generated during your experiment:
 - Model weights and checkpoints.
@@ -103,6 +106,7 @@ Files generated during your experiment:
 - Confusion matrices.
 - Evaluation reports.
 - Configuration files.
+- Source Code Snapshots: A copy of the exact Python scripts or git commit hash state used to execute the run, ensuring complete reproducibility.
 
 4. Model
 
@@ -396,3 +400,208 @@ A pointer record (the file path or URI pointing to that artifact) is written to 
 
 Scaling Beyond mlflow.db
 While SQLite (mlflow.db) is fantastic for local development, solo projects, and testing, enterprise environments switch the backend store URI (--backend-store-uri) to a production-grade relational database like PostgreSQL or MySQL to handle high concurrent writes from multiple team members or CI/CD pipelines.
+
+
+
+##### infer_signature():
+describes what data your model expects as input and what it returns as output.
+
+In your script:
+signature = infer_signature(X_train, model.predict(X_train))
+MLflow examines both arguments and records:
+- Input: rows containing four floating-point values—the four Iris flower measurements.
+- Output: an integer class prediction for each row (0, 1, or 2).
+Passing signature=signature when logging the model saves this description in its MLmodel file.
+
+This helps in two ways:
+1. Understanding the model: someone loading it can inspect the expected input structure.
+2. Validating predictions: MLflow’s pyfunc interface and serving endpoint use the signature to validate inputs, such as detecting the wrong number of features.
+It doesn’t improve accuracy or train the model. It records the model’s input/output contract.
+
+Because your inputs are NumPy arrays, the signature captures their shape and data type. Using a pandas DataFrame would also capture feature names.
+
+
+### Useful things to use
+- What to record	
+- Why it helps	
+- Your Iris example
+
+- More evaluation metrics	
+- Accuracy can hide class-specific mistakes	
+- Macro F1, precision, recall
+
+- Training and validation scores	
+- Helps identify overfitting	
+- High training accuracy but lower validation accuracy
+
+- Evaluation artifacts	
+- Makes errors easier to inspect	
+- Confusion matrix, classification report
+
+- Data information	
+- Identifies which data produced the result	
+- Dataset source/version, class counts, split settings
+
+- Code version	
+- Connects the run to its implementation	
+- Git commit hash
+
+- Environment	
+- Helps reproduce or reload the model	
+- Python and library versions
+
+- Model interface	
+- Describes valid prediction inputs	
+- Signature and input example
+
+- Tags and descriptions	
+- Explains the purpose of the run	
+- model_type=random_forest, “Testing shallow trees”
+
+- Runtime information	
+- Helps compare computational cost	
+- Training duration, prediction latency
+
+
+
+##### ikv
+
+
+We want to answer:
+For this prediction task, which training approach should I choose, and what evidence supports that choice?
+
+MLflow stores the history of how you answered that question. It doesn’t decide how you should organize your work, train your models, or choose the winner. You define the experiment structure; MLflow records it.
+
+An experiment is the collection of work around a question.
+
+For your project, the question is: “How should I classify Iris flowers?”
+
+So iris-classification is a sensible experiment name. Inside that experiment, you can try Random Forest, Logistic Regression, SVM, different hyperparameters, and different preprocessing approaches.
+
+You generally wouldn’t create a separate experiment for every algorithm, because you want to compare those algorithms while solving the same task.
+
+An experiment is also not a single execution of your script. It is the container that remains across many executions.
+
+A run is one recorded attempt or execution.
+
+Suppose you train Logistic Regression with a particular configuration and evaluate it. You want a record containing:
+- Which algorithm and configuration you used.
+- Which data and code you used.
+- Its evaluation scores.
+- The fitted model and any reports.
+That record is a run.
+
+Then you change its regularization setting and train again. That is another run. You try Random Forest. Another run.
+
+The algorithm name doesn’t define the run’s identity. A run represents a particular attempt with particular settings and results. Repeating the same configuration tomorrow still creates another run.
+
+For a simple learning project, this is enough:
+Experiment: iris-classification
+│
+├── Run: Logistic Regression, configuration A
+├── Run: Logistic Regression, configuration B
+├── Run: Random Forest, configuration A
+├── Run: Random Forest, configuration B
+└── Run: SVM, configuration A
+You do not need parent and child runs to compare algorithms. Ordinary runs in the same experiment are sufficient.
+
+Parent and child runs become useful when one execution coordinates several attempts.
+
+Suppose you run one comparison script that tries three algorithms, with two configurations for each. You may want to keep those six attempts together because they belong to the same comparison: same data split, same evaluation procedure, same code execution.
+
+Then the structure can be:
+Experiment: iris-classification
+│
+├── Parent run: algorithm-comparison-001
+│   ├── Child: Logistic Regression, configuration A
+│   ├── Child: Logistic Regression, configuration B
+│   ├── Child: Random Forest, configuration A
+│   ├── Child: Random Forest, configuration B
+│   ├── Child: SVM, configuration A
+│   └── Child: SVM, configuration B
+│
+└── Parent run: algorithm-comparison-002
+    ├── Child: Logistic Regression, configuration C
+    ├── Child: Random Forest, configuration C
+    └── Child: SVM, configuration C
+Here, the parent means “this comparison session.” Each child means “one candidate tested during that session.”
+
+A parent isn’t inherently a model. It can hold the search settings, dataset information, overall duration, winning candidate ID, and summary results.
+
+A child isn’t a special kind of training algorithm. It is an ordinary run linked to another run. The hierarchy gives your records context.
+
+In your current file, the parent coordinates a search, and each child represents one Random Forest configuration. Trying different algorithms extends the meaning of a candidate from “these Random Forest settings” to “this algorithm, preprocessing, and settings.”
+
+That last part matters. You are usually comparing complete training approaches:
+Candidate	What you actually train
+Logistic Regression	Scaling followed by Logistic Regression
+SVM	Scaling followed by SVM
+Random Forest	Random Forest, usually without scaling
+
+
+Different algorithms can need different preprocessing. Fair comparison means giving each approach appropriate preprocessing while keeping the evaluation conditions consistent.
+
+The hierarchy organizes your work. The evaluation procedure makes the comparison meaningful.
+
+For your Iris project, the procedure should be:
+1. Reserve the test set once. Keep the same 30 test flowers aside.
+2. Compare candidates using the remaining 120 flowers. Use the same cross-validation folds for all candidates.
+3. Record validation results in each candidate run. For example, mean macro F1 and its variation across folds.
+4. Choose a candidate using a metric you decided beforehand.
+5. Train that selected configuration on all 120 training flowers.
+6. Evaluate the selected model on the reserved test set.
+The test score answers, “How well does my selected approach generalize to these held-out examples?” It should not become another score you repeatedly use to choose algorithms.
+
+Cross-validation introduces another distinction: a candidate run can contain several model fits. With five-fold cross-validation, one candidate involves five fitted models. You can store their scores together in one run. You don’t need a child run for every fold.
+
+Finally, you decide where the saved models belong.
+
+For a small comparison, you can save a fitted model in every candidate run if you want to reload each approach later. Or you can save candidate scores and only save the final selected model. Your current script follows the second approach and saves the winner in the parent run. That is a design choice, not an MLflow requirement.
+
+For you, I’d keep one iris-classification experiment, use one parent per complete comparison, and use one child per algorithm/configuration candidate. That gives each level a clear meaning:
+Experiment: What problem am I studying?
+Parent run: Which comparison session was this?
+Child run: Which specific approach did I test?
+Metrics and artifacts: What happened, and what evidence did it produce?
+
+
+#### so if we run same file twice, what will change? will the database get updated?
+
+
+
+
+
+
+
+1:24 AM
+
+
+
+
+
+
+Yes. Each execution adds new records to the same database, provided you use the same tracking location.
+
+For your current script, running it twice produces:
+Experiment: iris-classification
+│
+├── Parent run from execution 1
+│   └── Four child runs
+│
+└── Parent run from execution 2
+    └── Four child runs
+That means 10 runs total: two parents and eight children.
+What	Second execution
+Experiment	Reuses iris-classification
+Run names	Repeat
+Run IDs	New unique IDs
+Previous results	Remain unchanged
+Parameters	Recorded again in the new runs
+Scores	Usually match with unchanged code, data, and environment because the seeds are fixed
+Durations and timestamps	Change
+Reports, plots, saved model	Saved again as new artifacts/model records
+
+
+The database stores the new run metadata, parameters, metrics, and artifact references. The actual model and plot files are stored separately in the artifact storage.
+
+MLflow keeps a history; it doesn’t overwrite the previous run just because the filename or run name is the same.
