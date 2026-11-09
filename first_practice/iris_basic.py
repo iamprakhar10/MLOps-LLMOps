@@ -40,6 +40,12 @@ def log_git_details():
     def git(*args):
         """Run Git in the project directory and return its text output."""
 
+
+        """
+        Typical return: stripped Git output as a string, such as "e930201..."
+        for rev-parse HEAD (hash shortened here), or "" for a clean status.
+        """
+
         return subprocess.check_output(
             ["git", "-C", str(PROJECT_ROOT), *args],
             text=True,
@@ -100,10 +106,22 @@ def log_git_details():
 
     mlflow.log_artifact(str(Path(__file__).resolve()), artifact_path="source")
 
+    """
+    Typical return: None; Git details and source files are logged to MLflow.
+    """
+
+
 def classification_metrics(y_true, predictions, prefix):
     """Return accuracy and macro-averaged scores with prefixed metric names."""
 
     """Macro averaging gives each class equal weight; zero_division=0 handles undefined ratios."""
+
+
+    """
+    Typical return with prefix="test" (illustrative scores):
+    {"test_accuracy": 0.90, "test_f1_macro": 0.89,
+     "test_precision_macro": 0.90, "test_recall_macro": 0.89}
+    """
 
     return {
         f"{prefix}_accuracy": accuracy_score(y_true, predictions),
@@ -466,6 +484,11 @@ def main():
         print(f"Selected parameters: {best_params}")
         print(f"Best CV macro F1: {best_score:.4f}")
         print(f"Test accuracy: {accuracy_score(y_test, predictions):.4f}")
+
+    """
+    Typical return: None; models/results are logged to MLflow and a summary is printed.
+    """
+
 
 if __name__ == "__main__":
     main()
