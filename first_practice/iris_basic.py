@@ -38,6 +38,7 @@ def log_git_details():
     """Record the commit and edits, since a commit misses uncommitted code."""
 
     def git(*args):
+        """Run Git in the project directory and return its text output."""
 
         return subprocess.check_output(
             ["git", "-C", str(PROJECT_ROOT), *args],
@@ -47,6 +48,8 @@ def log_git_details():
 
     try:
         commit = git("rev-parse", "HEAD")
+
+        """Porcelain is Git's stable status format; the HEAD diff captures tracked-file edits."""
 
         status = git("status", "--porcelain")
 
@@ -98,6 +101,10 @@ def log_git_details():
     mlflow.log_artifact(str(Path(__file__).resolve()), artifact_path="source")
 
 def classification_metrics(y_true, predictions, prefix):
+    """Return accuracy and macro-averaged scores with prefixed metric names."""
+
+    """Macro averaging gives each class equal weight; zero_division=0 handles undefined ratios."""
+
     return {
         f"{prefix}_accuracy": accuracy_score(y_true, predictions),
         f"{prefix}_f1_macro": f1_score(
@@ -121,6 +128,8 @@ def classification_metrics(y_true, predictions, prefix):
     }
 
 def main():
+    """Compare Iris models, evaluate the winner, and log results to MLflow."""
+
     iris = load_iris()
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -281,6 +290,9 @@ def main():
                     error_score="raise",
                 )
                 metrics = {}
+
+                """Cross-validation's test scores are validation folds, not the held-out test set."""
+
                 for metric in scoring:
 
                     for split, prefix in (("train", "cv_train"), ("test", "cv")):

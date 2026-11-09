@@ -1,4 +1,5 @@
 .env
+.DS_Store
 
 # Python
 .venv/
@@ -7,3 +8,6 @@ __pycache__/
 # MLflow local tracking data and artifacts
 mlruns/
 mlflow.db*
+
+# Collected datasets are stored outside Git; version references will use DVC.
+/data/
