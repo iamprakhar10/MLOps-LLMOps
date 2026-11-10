@@ -605,3 +605,157 @@ Reports, plots, saved model	Saved again as new artifacts/model records
 The database stores the new run metadata, parameters, metrics, and artifact references. The actual model and plot files are stored separately in the artifact storage.
 
 MLflow keeps a history; it doesn’t overwrite the previous run just because the filename or run name is the same.
+
+
+# Bikie
+The collector already knows what to download and how to preserve it. Now we need somewhere durable to store the data and something that runs the collector automatically.
+
+The proposed flow is:
+EventBridge Scheduler — every five minutes
+            ↓
+Lambda — runs our collector
+            ↓
+Downloads the three public feeds
+            ↓
+Temporarily saves the collection in /tmp
+            ↓
+Uploads the files to a private S3 bucket
+            ↓
+Uploads manifest.json LAST
+Each component has one job:
+Component	Why we need it
+S3	Keeps collections after the collector finishes
+Lambda	Runs the collector without a continuously running server
+EventBridge Scheduler	Starts Lambda every five minutes
+IAM role	Gives Lambda permission to write to our bucket without putting AWS keys in the code
+CloudWatch logs	Shows whether collection succeeded or failed
+
+
+Why /tmp?
+
+Lambda provides temporary working storage. Our existing collector can build a collection there, then we upload it to S3. Temporary files aren’t our permanent archive—S3 is.
+
+S3 would contain:
+Private bucket/
+└── raw/
+    └── collected_date=YYYY-MM-DD/
+        ├── collection-A/
+        │   ├── discovery.json.gz
+        │   ├── station_status.json.gz
+        │   ├── station_information.json.gz
+        │   └── manifest.json
+        └── collection-B/
+            └── ...
+Why upload the manifest last?
+
+Uploading several S3 files is not one atomic operation. An upload could fail halfway through.
+
+We’ll establish this rule:
+A collection is ready for processing only when its manifest exists.
+
+Lambda uploads the three data files first, then the manifest. If an earlier upload fails, it must not publish the manifest. Later stages can ignore incomplete collections.
+
+We’ll implement this in two small stages:
+1. Manual cloud collection: create the bucket and Lambda, invoke it once, and verify the saved files and checksums.
+2. Automatic collection: enable the five-minute schedule, check repeated executions, and add failure alerts.
+We’ll also prepare a way to disable the schedule and remove the resources, keeping your credit budget in view.
+
+This milestone is complete when: your laptop can be off, new completed collections appear in S3, and we can distinguish a successful collection from a failed one.
+
+After that, we’ll validate the accumulated station data and build versioned training datasets. We won’t start model training yet.
+
+I’ll wait for your instruction before coding or creating AWS resources.
+
+
+#### fmkrs 1
+Now we’ll prepare our collector to run inside Lambda and upload its results to S3.
+
+Currently, the collector saves files on your laptop. Lambda needs two additions:
+1. An entry point called a handler: AWS calls this function when Lambda starts.
+2. S3 upload logic: sends the completed collection to your bucket.
+The flow will be:
+You click Test in Lambda
+        ↓
+AWS calls our handler
+        ↓
+Handler runs the existing collector
+        ↓
+Collection is saved temporarily in /tmp
+        ↓
+Upload the three compressed files to S3
+        ↓
+Upload manifest.json LAST
+        ↓
+Return the saved S3 location
+We’ll create a deployment ZIP containing the collector, handler, and required dependencies. You’ll upload that ZIP to Lambda.
+
+First we’ll test one manual collection. Once the four files appear correctly in S3, we’ll add the five-minute schedule.
+
+
+#### fmkrs 2
+
+Let’s start with how your code starts running.
+
+On your laptop, you run:
+uv run python -m mlops_llmops.citibike.collector
+Python opens collector.py, reaches this part, and calls main():
+if __name__ == "__main__":
+    main()
+On AWS, you won’t type that terminal command. Instead, you upload the code and tell AWS:
+“When I click Test, call this particular Python function.”
+
+That starting Python function is called the handler. It’s an ordinary function—the name describes its job.
+
+It will coordinate these steps:
+AWS calls our starting function
+            ↓
+It calls the existing collector
+            ↓
+Collector downloads and saves the files temporarily
+            ↓
+Starting function uploads those files to S3
+            ↓
+It returns a message saying where they were saved
+Why add this function? Your existing collector handles downloading and saving locally. The new function connects that work to AWS and adds the S3 upload step.
+
+We’ll reuse the collector. We don’t need to rewrite its downloading logic.
+
+Also, these two terms mean different things:
+- Lambda function: the AWS resource you created named citibike-collector. It holds your uploaded code, settings, and permissions.
+- Handler: the Python function inside that uploaded code that AWS calls first.
+For now, the key idea is: we need to tell AWS where execution starts, just as your laptop currently starts through main().
+
+#### fmkrs 3
+“Temp” means temporary storage: a working area we use while a task runs, then clean up.
+
+We use it for two different reasons.
+
+In collector.py: prepare the collection before publishing it
+Create temporary directory
+        ↓
+Write all three data files and the manifest
+        ↓
+Rename it to the final collection directory
+The rename happens only after everything is written successfully. If writing fails, the temporary directory is cleaned up, so we don’t leave a half-written collection looking complete.
+
+On success, renaming preserves the files in their final location.
+
+In lambda_handler.py: hold files until they reach S3
+
+Lambda provides writable temporary storage at /tmp.
+Create our working directory under /tmp
+        ↓
+Collector builds a complete collection inside it
+        ↓
+Upload the collection to S3
+        ↓
+Remove our working directory
+These fit together:
+/tmp/citibike-<random>/             ← handler's working directory
+└── collected_date=.../
+    └── .collect-<random>/         ← collector prepares files here
+        ↓ renamed when complete
+    └── <collection-id>/          ← uploaded to S3, then cleaned up
+The thought process: prepare files safely, preserve the completed result in its permanent destination, and remove working files afterward.
+
+TemporaryDirectory handles cleanup when its with block exits normally or through an exception. A forced shutdown can interrupt cleanup; Lambda’s /tmp is therefore never our permanent archive.
