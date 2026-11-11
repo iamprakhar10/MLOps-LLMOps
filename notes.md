@@ -759,3 +759,31 @@ These fit together:
 The thought process: prepare files safely, preserve the completed result in its permanent destination, and remove working files afterward.
 
 TemporaryDirectory handles cleanup when its with block exits normally or through an exception. A forced shutdown can interrupt cleanup; Lambda’s /tmp is therefore never our permanent archive.
+
+
+#### asdf 4
+Next, we need to package the code for Lambda.
+
+AWS can’t access the Python files or installed libraries on your laptop. We must put the required files into one ZIP archive and upload it.
+
+That ZIP needs:
+- Our collector.py and lambda_handler.py, preserving their package folders.
+- certifi for HTTPS certificate checks.
+- boto3 and its dependencies for S3 uploads.
+The next steps are:
+1. Build the ZIP locally.
+2. Upload it to citibike-collector in the Lambda console.
+3. Tell AWS which Python function to start by setting Handler to:
+   mlops_llmops.citibike.lambda_handler.lambda_handler
+   Everything before the final dot identifies the Python module. The last lambda_handler is the function inside it.
+4. Run one test with {}.
+5. Check that the three data files and manifest appear in S3.
+Our immediate task is only building and checking the ZIP. The five-minute schedule comes after the manual cloud test succeeds.
+
+Our code + required libraries
+              ↓
+        One ZIP file
+              ↓
+       Upload to Lambda
+
+Python itself isn’t in the ZIP—AWS supplies it through the Python 3.14 runtime you selected.

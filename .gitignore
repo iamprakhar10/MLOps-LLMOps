@@ -11,3 +11,5 @@ mlflow.db*
 
 # Collected datasets are stored outside Git; version references will use DVC.
 /data/
+
+/build/
