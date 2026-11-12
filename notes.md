@@ -787,3 +787,80 @@ Our code + required libraries
        Upload to Lambda
 
 Python itself isn’t in the ZIP—AWS supplies it through the Python 3.14 runtime you selected.
+
+#### asdf 5
+QUESTION:
+
+"Run one test
+
+Create a test event named manual-collection with this JSON:
+{}
+Save it, then click Test. No input data is needed because our function fetches the feeds itself.
+
+"
+
+What does this do? ou handler function takes 2 arguments, please explain what is going on
+
+
+
+
+ANSWER: 
+
+Your handler takes two arguments:
+def lambda_handler(event, context):
+You provide event. AWS provides context.
+
+When you click Test, this happens:
+1. AWS reads the test JSON.
+2. It converts that JSON into a Python value.
+3. It creates an object containing details about this execution.
+4. It calls your handler with both values.
+For your test, the JSON is:
+{}
+So event becomes an empty Python dictionary.
+
+context is created automatically by AWS. It contains information such as the execution’s unique ID and how much running time remains. You don’t enter it yourself.
+
+Conceptually, AWS does:
+lambda_handler({}, aws_execution_details)
+Your current handler doesn’t use either argument. It gets:
+- The bucket name from RAW_BUCKET.
+- Feed URLs and data through the collector.
+That’s why {} is sufficient.
+
+manual-collection is just the saved test’s name; it isn’t an argument passed to your handler.
+
+Clicking Test runs the real code. It downloads the feeds and uploads a real collection to S3—it isn’t a simulation.
+
+#### asdf 6
+Amazon EventBridge Scheduler. Its job is to start another AWS service at specified times. AWS overview
+
+You previously clicked Test to start collection manually. Scheduler now makes that request automatically every five minutes.
+Scheduler: “It’s time to collect.”
+              ↓
+Lambda runs our Python function
+              ↓
+Collector downloads the feeds
+              ↓
+Files are uploaded to S3
+              ↓
+Lambda finishes
+Scheduler doesn’t download or store bike data. It only starts the work.
+
+We chose it because we need regular collection while your laptop is off, without maintaining a continuously running server.
+
+The alternatives were:
+Alternative	            How it works	Tradeoff for our project
+1. Your laptop’s scheduler	Runs a command every five minutes	Collection stops when the laptop is off or disconnected
+2. An EC2 server with cron	A cloud computer runs commands on a timetable	We must maintain the server and account for its running costs
+3. Older EventBridge scheduled rules	Also starts Lambda on a schedule	Still supported, but AWS calls this a legacy feature and recommends Scheduler for new schedules
+4. AWS Step Functions	Coordinates multiple steps, including waiting between them	More useful when we need a workflow such as collect → process → train; unnecessary complexity for starting one collector
+
+
+AWS explicitly recommends Scheduler over the older scheduled-rule feature. AWS guidance
+
+Putting an endless “collect, sleep, repeat” loop inside our Lambda would also be a poor fit: the function would remain running while waiting, and ordinary Lambda executions have a maximum timeout of 15 minutes. Lambda timeout documentation
+
+Our division of responsibilities is therefore:
+
+Scheduler decides when. Lambda executes the work. S3 preserves the result.
