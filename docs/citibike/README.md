@@ -16,14 +16,17 @@ Predict the probability that a station will have **zero rentable bikes in
 
 | Step | Deliverable | Completion check |
 | --- | --- | --- |
-| 1 — current | One-shot collector, run locally | Original feed responses and a verifiable manifest are saved |
-| 2 | S3 + scheduled Lambda collection | New observations arrive every five minutes with the laptop off |
-| 3 | Validation, curated data, DVC + S3 versions | Retrieve an earlier dataset and safely retry processing |
+| 1 — implemented | One-shot collector, run locally | Original feed responses and a verifiable manifest are saved |
+| 2 — configured manually | S3 + scheduled Lambda collection | Collections downloaded from S3 are available for inspection |
+| 3 — in progress | Health checks, curated data, DVC + S3 versions | Audit first, then prepare and version usable data |
 | 4 | Features, delayed labels, time-based evaluation, MLflow | Compare algorithms on the same frozen data and splits |
 | 5 | Registered model and cloud prediction API | Trace an API prediction to its features and model release |
 | 6 | Monitoring, CI/CD, rollback and teardown | Evaluate later outcomes, recover from failures, preserve evidence |
 
-Only step 1 has been implemented. Nothing has been deployed to AWS.
+The collector and Lambda upload code are implemented. S3, IAM, Lambda, and a
+five-minute schedule were configured manually in the AWS console. The local health
+checker inspects downloaded collections; cleaning, labeling, and DVC versions
+are not implemented yet. A local report does not independently verify AWS configuration.
 
 ## Where the data comes from
 
@@ -95,6 +98,38 @@ AWS credentials. Live collection is a separate smoke check.
 
 ## Next guided step
 
-Inspect two captured manifests and identify which values belong to ingestion
-time versus source time. Then prepare the Mumbai S3/Lambda deployment, including
-its cost estimate and resource limits, before creating cloud resources.
+Run the local collection health check after downloading data from S3:
+
+```bash
+uv run python -m mlops_llmops.citibike.health_check \
+  --date 2026-11-11 --date 2026-11-12
+```
+
+Dates refer to UTC `collected_date=...` partitions; repeat `--date` to select them.
+Omit it to inspect all dates. Selecting the recent dates avoids interpreting an
+older manual test as a gap in the scheduled collection.
+
+The checker writes a new `data/citibike/reports/<audit-id>/` directory containing:
+
+- `health_report.md`: readable counts, timing gaps, and file issues.
+- `health_report.json`: full settings, per-collection findings, and a few station examples per issue.
+
+It checks the three files against their manifest, joins station information to
+status by station ID, and flags invalid counts, within-collection duplicate IDs,
+missing metadata, disabled operational flags, and stale/future observations.
+Unsupported station schema versions are reported, not silently interpreted.
+
+Freshness is evaluated at the recorded download time, not today's clock.
+`--max-age-minutes 15` is the default review threshold, configurable after we
+inspect the findings. It is not presented as a GBFS compliance rule.
+`--gap-tolerance-seconds 90` allows timing jitter around the five-minute interval.
+
+The checker only measures gaps BETWEEN observed collection starts, not before
+the first or after the last. Gaps can reflect manual tests or missing local
+downloads; they do not prove scheduler failures. Closed stations are review
+flags, not broken downloads. Repeated availability counts across collections
+are allowed. Multiple flags can apply to the same row.
+
+Raw files are read only, reports stay outside the raw directory, and no AWS
+credentials or requests are required for this step. Next, inspect the report
+together before deciding cleaning rules, writing Parquet tables, or adding DVC.

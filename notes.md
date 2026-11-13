@@ -864,3 +864,117 @@ Putting an endless “collect, sleep, repeat” loop inside our Lambda would als
 Our division of responsibilities is therefore:
 
 Scheduler decides when. Lambda executes the work. S3 preserves the result.
+
+
+#### asdf 7
+Next, we’ll turn the collected files into a clean table we can eventually train on. Collecting data doesn’t automatically mean every record is usable.
+
+The flow will be:
+Completed collections in S3
+          ↓
+Read each manifest and its three data files
+          ↓
+Extract station availability and station information
+          ↓
+Join them using station_id
+          ↓
+Check the records
+      ┌───┴────┐
+   Usable   Questionable
+      ↓          ↓
+ Clean table   Separate records with reasons
+      ↓
+Save a dated dataset version
+We’ll do this in stages:
+1. Check collection health. Confirm collections arrived regularly and contain all four files. Look for gaps or failed executions.
+2. Convert JSON into rows. Each row represents one station observed during one collection:
+   Collection time	Station ID	Available bikes	Capacity	Renting enabled	Source report time
+   10:00	123	8	30	Yes	09:59
+   10:05	123	5	30	Yes	10:04
+3. Check data quality. Identify missing station IDs, invalid counts, stale observations, and closed stations. An unchanged bike count is valid—it doesn’t automatically mean a duplicate or stale record.
+4. Save the results. Keep the original files, save usable rows in Parquet—a compact format for tables—and produce a report explaining which records were excluded and why.
+5. Version the dataset. Use DVC to record the exact prepared files so later experiments can retrieve the same data.
+Why this is necessary: a closed station reporting zero bikes should not automatically become an ordinary “station ran out of bikes” training example.
+
+After this stage, we’ll create the 30-minute-ahead labels: connect a station’s current observation to a suitable observation 30 minutes later.
+
+Our immediate task is checking collection health and inspecting the actual records—not training a model yet. I’ll wait before coding.
+
+
+#### ASDF 8
+CloudShell is optional. We can run the checker from your Mac and read the files in S3. The scheduled collector will continue running in AWS.
+
+We need to let your terminal sign into AWS first.
+
+1. Install AWS CLI version 2
+
+This is AWS’s terminal tool. Use the macOS installer from the official installation guide.
+
+Then check:
+aws --version
+For the browser-login method below, it must be 2.32.0 or newer.
+
+2. Sign in through your browser
+aws login --profile citibike
+- citibike is a name for this saved login configuration.
+- Enter ap-south-1 if asked for a region.
+- Complete the browser sign-in.
+AWS provides temporary credentials through this process; you don’t need to create permanent access keys. AWS login documentation
+
+3. Verify the login
+aws sts get-caller-identity --profile citibike
+If it returns your AWS identity, the login works. You don’t need to share that output.
+
+4. Verify access to our data
+aws s3 ls \
+  s3://citibike-raw-prakhar-20261110/raw/ \
+  --profile citibike \
+  --region ap-south-1
+You should see the collection-date prefixes.
+
+Once this works, we can run the health checker against S3. If either command fails, share the error message—not credentials. We’ll fix access before proceeding.
+
+
+#### asdf 8
+We’ll first write a small program that reads the S3 collections and produces a health report. We won’t train a model yet.
+
+The flow:
+S3 collections
+      ↓
+Check which collections are complete
+      ↓
+Read their station records
+      ↓
+Identify gaps and questionable data
+      ↓
+Produce a report
+1. Run it where AWS access is available
+
+Your browser is signed into AWS, but this workspace has no AWS login configured. We can use CloudShell—a terminal inside the AWS console—without putting access keys in our code.
+
+2. Check the saved collections
+
+The program will:
+- Find collection folders under raw/.
+- Check whether the manifest and three data files exist.
+- Compare the saved files with their manifest.
+- Compare collection times to find unexpected gaps in the five-minute schedule.
+A folder without a manifest is considered incomplete.
+
+3. Inspect station records
+
+For complete collections, check:
+- Are station IDs and required fields present?
+- Are availability counts valid?
+- Is the station open for rentals?
+- How old was the station’s reported information when we collected it?
+- Can each status record be connected to station information?
+It will flag questionable records with reasons, rather than silently deleting them. Repeated bike counts alone won’t be treated as errors.
+
+4. Read the report together
+
+It will show collection counts, incomplete collections, time gaps, station counts, and examples of questionable records.
+
+Those findings will guide our cleaning rules. After that, we’ll build the clean table and version it.
+
+This initial check only reads S3 and writes a report. It won’t change the running collector or the stored observations.
