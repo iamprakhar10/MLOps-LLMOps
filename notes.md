@@ -978,3 +978,24 @@ It will show collection counts, incomplete collections, time gaps, station count
 Those findings will guide our cleaning rules. After that, we’ll build the clean table and version it.
 
 This initial check only reads S3 and writes a report. It won’t change the running collector or the stored observations.
+
+#### ASDF 9
+So this health checkup will be done in local or we will shif it into aws?
+
+ANSWER: 
+Currently it runs locally. Later, we’ll automate it in AWS.
+
+We’re running it locally first so we can inspect real records, understand the findings, and decide which checks and thresholds are appropriate.
+
+The eventual flow will be:
+Collector saves a collection in S3
+              ↓
+manifest.json arrives last
+              ↓
+AWS starts checking that collection
+              ↓
+Save findings and flag problems
+There are two kinds of checks to separate:
+- Per-collection checks: files, manifest, and station records. These can run after each collection arrives.
+- Across-collection checks: timing gaps and overall trends. These need a separate periodic check—if a collection never arrives, it cannot trigger its own check.
+We’ll reuse the checking logic, but add S3 reading and cloud execution around it. The current script isn’t deployed to AWS yet.
