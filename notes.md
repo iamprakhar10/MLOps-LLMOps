@@ -999,3 +999,36 @@ There are two kinds of checks to separate:
 - Per-collection checks: files, manifest, and station records. These can run after each collection arrives.
 - Across-collection checks: timing gaps and overall trends. These need a separate periodic check—if a collection never arrives, it cannot trigger its own check.
 We’ll reuse the checking logic, but add S3 reading and cloud execution around it. The current script isn’t deployed to AWS yet.
+
+
+#### ASDF 10
+what is the use of parquet file
+
+Apache Parquet is an open-source, column-oriented data storage format designed specifically for high-performance data processing, massive analytics, and machine learning pipelines.
+
+To understand its value, you have to look at how it fundamentally changes how data is written to and read from disk compared to traditional formats like CSVs or JSON files.
+
+1. Row-Oriented vs. Column-Oriented Storage
+Row-Oriented (CSV, JSON, Relational DBs): Data is stored sequentially by row: [User1, Age1, City1], [User2, Age2, City2]. If you want to read just the Age column, the computer still has to scan through every single byte of every row, loading unwanted data into memory.
+
+Column-Oriented (Parquet): Data is grouped and stored by columns: [User1, User2], [Age1, Age2], [City1, City2]. If your script only needs the Age column, Parquet reads only those specific disk blocks, ignoring everything else.
+
+2. Core Architectural Advantages
+A. Massive Disk Compression
+Because data of the exact same type sits side-by-side in a columnar layout (e.g., millions of integers or repetitive category strings), compression algorithms (like Snappy, Gzip, or Brotli) can compress the file exponentially better. A 10GB CSV file often shrinks down to a 1GB or 2GB Parquet file, drastically reducing storage costs and network transfer times.
+
+B. Column Pruning (Minimized I/O)
+In an MLOps workflow, if your training dataset has 200 features, but your model only trains on 15 of them, reading a CSV requires parsing all 200 columns. With Parquet, your data loader can perform column pruning, fetching only the 15 required columns directly from disk and saving massive amounts of RAM and CPU cycles.
+
+C. Predicate Pushdown
+Parquet files contain embedded metadata (minimum and maximum values for each data block). If you run a query filtering for WHERE timestamp > 2026-01-01, the storage engine reads the metadata footer first, instantly skips entire data blocks that fall outside that range, and avoids reading unnecessary disk pages altogether.
+
+D. Strict Schema Enforcement
+Unlike CSVs—where headers can drift, text strings can break, and data types (like integers vs. strings) are constantly guessed incorrectly—Parquet is self-describing and strongly typed. Every file embeds its exact data types in its metadata, preventing silent data corruption during pipelines.
+
+3. Where It Is Used in MLOps & Data Engineering
+Data Lakes & Warehouses: Serving as the foundational storage layer for modern data lakes (often paired with Delta Lake or Apache Iceberg on top of cloud storage like AWS S3).
+
+Distributed Computing (Spark / Databricks): The native format for reading and writing distributed PySpark DataFrames across clusters.
+
+Feature Stores & ML Datasets: Saving processed training features, embeddings, and validation sets before they are passed into training loops (using tools like DuckDB, Polars, or PyTorch dataloaders).
