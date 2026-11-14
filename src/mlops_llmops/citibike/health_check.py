@@ -45,8 +45,9 @@ def is_count(value):
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-def inspect_stations(status_rows, information_rows, received_at, status_updated_at, max_age_seconds):
-    """Count station issues and return a few examples; do not delete or fix any records."""
+def inspect_stations(status_rows, information_rows, received_at, status_updated_at, max_age_seconds,
+                     include_rows=False):
+    """Count station issues; optionally retain checked rows for the separate cleaning step."""
     information = defaultdict(list)
     information_issues = Counter()
     for row in information_rows:
@@ -63,6 +64,7 @@ def inspect_stations(status_rows, information_rows, received_at, status_updated_
     issues = Counter()
     examples = defaultdict(list)
     normal_examples = []
+    checked_rows = []
     flagged_rows = 0
     flags_by_feed = set()
     if received_at is None:
@@ -77,6 +79,7 @@ def inspect_stations(status_rows, information_rows, received_at, status_updated_
             flags_by_feed.add("future_status_feed_timestamp")
 
     for index, row in enumerate(status_rows):
+        source_row = row
         flags = set(flags_by_feed)
         if not isinstance(row, dict):
             row = {}
@@ -143,6 +146,11 @@ def inspect_stations(status_rows, information_rows, received_at, status_updated_
             "report_age_seconds": report_age,
             "flags": sorted(flags),
         }
+        if include_rows:
+            """Keep all checked rows for cleaning; ordinary health reports still keep only a few examples."""
+
+            checked_rows.append({"observation": example, "source_status": source_row,
+                                 "source_information": metadata})
         if flags:
             flagged_rows += 1
             for flag in sorted(flags):
@@ -158,7 +166,7 @@ def inspect_stations(status_rows, information_rows, received_at, status_updated_
     not proof of a collector failure. Unchanged counts across collections are allowed.
     """
 
-    return {
+    result = {
         "status_rows": len(status_rows),
         "information_rows": len(information_rows),
         "unique_status_station_ids": len(ids),
@@ -169,10 +177,13 @@ def inspect_stations(status_rows, information_rows, received_at, status_updated_
         "issue_examples": dict(examples),
         "rows_without_flags_examples": normal_examples,
     }
+    if include_rows:
+        result["checked_rows"] = checked_rows
+    return result
 
 
-def inspect_collection(directory, max_age_seconds):
-    """Read one collection, verify its three files, and return completeness and station findings."""
+def inspect_collection(directory, max_age_seconds, include_rows=False):
+    """Verify a collection; optionally return its manifest and checked rows for cleaning."""
     result = {
         "collection_id": directory.name,
         "directory": str(directory),
@@ -263,7 +274,10 @@ def inspect_collection(directory, max_age_seconds):
         parse_timestamp(status_metadata.get("received_at")),
         parse_timestamp(documents["station_status"].get("last_updated")),
         max_age_seconds,
+        include_rows=include_rows,
     )
+    if include_rows:
+        result["manifest"] = manifest
 
     """Typical return: {'collection_id': '...', 'status': 'verified', 'stations': {...}, ...}."""
 

@@ -25,8 +25,9 @@ Predict the probability that a station will have **zero rentable bikes in
 
 The collector and Lambda upload code are implemented. S3, IAM, Lambda, and a
 five-minute schedule were configured manually in the AWS console. The local health
-checker inspects downloaded collections; cleaning, labeling, and DVC versions
-are not implemented yet. A local report does not independently verify AWS configuration.
+checker inspects downloaded collections. The observation cleaner writes accepted
+and excluded Parquet tables; training labels and DVC versions are not implemented
+yet. A local report does not independently verify AWS configuration.
 
 ## Where the data comes from
 
@@ -133,3 +134,47 @@ are allowed. Multiple flags can apply to the same row.
 Raw files are read only, reports stay outside the raw directory, and no AWS
 credentials or requests are required for this step. Next, inspect the report
 together before deciding cleaning rules, writing Parquet tables, or adding DVC.
+
+## Build accepted and excluded observation tables
+
+```bash
+uv run python -m mlops_llmops.citibike.clean_observations \
+  --date 2026-11-11 --date 2026-11-12
+```
+
+Use the downloaded UTC date partitions you intend to process. This command makes
+no AWS requests and does not update your local download automatically.
+It publishes a new `data/citibike/cleaned/<run-id>/` folder containing:
+
+| File | Contents |
+| --- | --- |
+| `accepted_observations.parquet` | Station observations accepted under the recorded rules |
+| `excluded_observations.parquet` | Rejected observations, reasons, and original row fields as JSON |
+| `cleaning_report.md` | Readable counts and cleaning rules |
+| `cleaning_report.json` | Rule settings, counts, overlapping reason totals, and skipped collections |
+| `source_manifest.json` | Exact input manifest paths and their SHA-256 values |
+
+Both tables use explicit column types and preserve station report time, status
+receipt time, information receipt time, collection times, and feed update times
+separately in UTC. Each row links to its source collection, manifest, and row index.
+Invalid counts become null in excluded typed columns; they are never filled with
+zero. The original invalid value remains in the excluded row's JSON fields.
+
+Rules reuse the health checker's file and station checks. Initial v1 exclusions
+include malformed/missing values, ambiguous station matches, duplicate station IDs
+within a collection, invalid counts, a station not installed or not allowing
+rentals, stale/future observations, and missing or inconsistent receipt times.
+The default freshness threshold is 15 minutes at receipt, configurable with
+`--max-age-minutes`. The existing 60-second future-clock tolerance is retained.
+
+An operating station with zero bikes is accepted. Refusing returns alone does
+not exclude a station that can rent bikes; its operational flag is retained.
+Repeated counts or source timestamps across different collections are kept.
+File-check failures are recorded as skipped collections, rather than inventing
+station rows from unreadable data. Exclusion reason counts can overlap.
+
+Tables are written one collection at a time and published only after the output
+files are closed. Every run gets a new folder, and raw data is not edited.
+These are observation tables, not training examples: no future label, feature
+window, gap filling, model fitting, DVC snapshot, or cloud upload is performed.
+The next step is reviewing the tables before fixing the label-matching contract.

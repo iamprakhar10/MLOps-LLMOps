@@ -1,0 +1,32 @@
+Use case: infographic-diagram.
+Create one polished educational infographic explaining this real Citi Bike project's raw-data cleaning flow. Audience: a programmer learning data engineering; use plain English, clear arrows and readable text. Large high-resolution landscape infographic, light background, restrained blue/teal with green accepted and amber excluded branches. Flat technical illustration, spacious layout, large text, no decorative clutter or watermark.
+
+Title: "Citi Bike: From Raw Files to Clean Tables"
+
+Show an unambiguous main flow, in numbered stages:
+1. "S3 bucket" with subtitle "Original collections in AWS".
+Arrow labeled "Previously downloaded" into a clearly bounded area called "YOUR COMPUTER — cleaning happens locally".
+Inside this local area:
+2. "Raw files" with path "data/citibike/raw/" and a sample folder illustration containing exactly:
+"discovery.json.gz"
+"station_information.json.gz"
+"station_status.json.gz"
+"manifest.json"
+Small note: "Original files stay unchanged".
+3. "Select input dates" with "Nov 11: 143 collections" and "Nov 12: 121 collections". Emphasize "264 collections total".
+4. "Check and read" with plain phrases "Check files against the manifest" and "Decompress and read JSON". A tiny side arrow says "Broken collection → skip and record the problem"; note "This run: 0 skipped".
+5. "Combine station records" with two converging inputs: "station_information: name + capacity" and "station_status: bikes + times + operating flags", joined by "Match station_id". Note "Keep station report time and download time separate". Discovery and manifest are used for checking/context; they are NOT extra station tables to join.
+6. "Apply cleaning rules" with concise text "Valid values • recent report • rentals allowed", and small clarification "Zero bikes at an operating station is valid".
+Split to two large output boxes:
+GREEN: "Accepted table", filename "accepted_observations.parquet", "647,266 rows", "Usable observations".
+AMBER: "Excluded table", filename "excluded_observations.parquet", "17,749 rows", "Keep rejected rows and their reasons", examples "Closed station / stale report / invalid value".
+Both outputs are saved under "data/citibike/cleaned/20261113T075549Z_a72ed6fb/" in the local computer area. Near output explain "Folder date = cleaning run date, not source-data date".
+Alongside outputs include small "Reports + source list" with "cleaning_report.md", "cleaning_report.json", "source_manifest.json", and short explanation "Counts, reasons and links back to the original collections".
+
+A bottom educational strip called "What is inside Parquet?" includes an unmistakable miniature TABLE with columns "Station", "Bikes", "Capacity", "Report time", "Download time"; two real example rows:
+"63 Ave & 99 St | 17 | 18 | 11:41:28 | 11:45:24"
+"Alexander Ave & E 134 St | 11 | 19 | 11:42:51 | 11:45:24"
+Caption: "Example times: Nov 11, UTC. One row = one station in one collection."
+Next to it state "Parquet = a compressed table file", "Preserves column types", "Read only the columns you need", "Accepted table: about 23 MiB".
+Closing small note "Cleaned observations now → model inputs and 30-minute targets come next".
+Accuracy: Both selected dates are partial days. 665,015 total station observations split into 647,266 accepted plus 17,749 excluded. This is local processing, not AWS processing. No output upload has happened. Do not imply one row per day, one row per station forever, or that excluded data is deleted. Draw readable arrows in one consistent direction and avoid crossing connectors. Prioritize clear flow and readable text over excessive detail.

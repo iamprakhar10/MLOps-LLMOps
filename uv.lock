@@ -1339,6 +1339,7 @@ dependencies = [
     { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "mlflow" },
+    { name = "pyarrow" },
     { name = "scikit-learn" },
 ]
 
@@ -1349,6 +1350,7 @@ requires-dist = [
     { name = "ipykernel", specifier = ">=7.4.0" },
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "mlflow", specifier = ">=3.18.0" },
+    { name = "pyarrow", specifier = ">=26.0.1" },
     { name = "scikit-learn", specifier = ">=1.9.1" },
 ]
 
