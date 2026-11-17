@@ -1111,3 +1111,15 @@ Why do this? Suppose a station reported 10 bikes at 09:40, stopped reporting, an
 We keep excluded observations with their reasons rather than deleting them.
 
 The 15-minute limit is our initial configurable choice. We compare against the original download time—not today—so valid historical observations do not become stale merely because we process them later.
+
+
+station_information contains things such as names, locations, and capacities. These change when a station is renamed, relocated, expanded, added, or removed. GBFS reference.
+
+By comparison, station_status can change whenever someone rents or returns a bike.
+
+However, the information document covers thousands of stations. A change to any station—or regeneration of the document—can update its timestamp while most station details remain identical.
+
+So distinguish:
+- Station values changing: names, capacities, locations actually differ.
+- Document timestamp changing: does not by itself prove those values changed.
+We would need to compare successive downloaded records to measure how frequently our Citi Bike station details actually change.

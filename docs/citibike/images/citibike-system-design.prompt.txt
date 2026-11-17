@@ -1,0 +1,84 @@
+INITIAL GENERATION PROMPT
+
+Use case: infographic-diagram.
+Create a clear SYSTEM ARCHITECTURE image for our real Citi Bike MLOps learning project. Professional technical diagram, large high-resolution landscape, light background, spacious horizontal lanes, readable labels, restrained colors, minimal icons, no decorative clutter. Title "Citi Bike MLOps — Collection, Training and Prediction". Subtitle "Goal: probability a station has zero rentable bikes 30 minutes after prediction time".
+A prominent legend: "Blue solid = cloud components already configured", "Green solid = implemented locally", "Dashed outline = planned", "Amber = collection schedule currently paused".
+Essential accuracy: The only cloud system already configured is the scheduled collector and raw S3 storage. Local audit/cleaning exists. Everything else is planned, not deployed. Proposed new hosting/services must be dashed. No implication current training or prediction service exists. No free-cost claims.
+
+Use FIVE clearly separated numbered horizontal lanes, with labeled data arrows and clean external connectors. Keep words short and readable.
+
+LANE 1: "1 • COLLECT — every 5 minutes when enabled"
+An EventBridge Scheduler box "CURRENTLY PAUSED" invokes "Collector Lambda — fetch and save".
+A separate source box "Public Citi Bike GBFS" feeds the collector; mention "discovery + station_information + station_status".
+Collector arrow to solid blue "Amazon S3 / raw/".
+Storage subtitle: "3 original JSON.gz files + manifest per collection".
+Small note "Manifest uploaded LAST". No URL directory hard-coding or false live status.
+
+LANE 2: "2 • CHECK & PREPARE OBSERVATIONS"
+From raw S3, one implemented small green LOCAL branch:
+"Download → health_check.py → clean_observations.py" → "Local accepted/excluded Parquet + reports".
+Label "This is where we are today".
+From raw S3, a separate planned DASHED cloud branch:
+"New raw manifest event" → "Processing Lambda + Docker — reuse checking/cleaning rules".
+Show planned outputs:
+"S3 curated history — accepted Parquet"
+"S3 excluded rows + reports — keep reasons"
+"S3 recent-history cache — inputs for prediction"
+Only curated accepted history goes toward training and recent-history cache; bad rows go to excluded, not the model. Show safe trigger note "Trigger ONLY raw/*/manifest.json; handle retries/duplicate events". These cloud trigger/worker/output nodes are all dashed; local data does NOT imply automatic S3 output upload exists.
+
+LANE 3: "3 • TRAIN AGAIN — separate jobs while collection continues"
+A small planned control box "Manual first; later periodic / enough new labels / performance alert" triggers this lane.
+Data flow from curated history into:
+"Build features + delayed answers" with short note "Only inputs known at prediction time; wait for valid future observations around +30 min".
+Then "Freeze training dataset — DVC + S3" with subtitle "fixed data version, not changing mid-run".
+Then "On-demand EC2 + Docker — train and compare models" with "MLflow: parameters, metrics, plots, models, Git commit + data version".
+Then decision diamond "Time-based evaluation passes? Beats baseline/current model?"
+YES → "Approved model release — versioned artifact in S3".
+NO → "Keep current model".
+Note "Future-match tolerance still to be agreed" near feature/label builder.
+Note "Training jobs do not block collection or replace the live model automatically".
+All nodes in this lane dashed / planned. MLflow for this Citi Bike model is not implemented yet. No always-on training service. Keep a previous approved release for rollback.
+
+LANE 4: "4 • PREDICT — serve the approved model"
+Planned user path "User → Streamlit demo → API Gateway → Prediction Lambda".
+Prediction Lambda has incoming data arrows from "Approved model release" and "S3 recent-history cache".
+Explain briefly "Same feature-building code as training; check input freshness at request time".
+Return arrow / label "Probability of empty station at prediction time +30 min".
+Output arrow "Save prediction time + inputs + model version + probability" into "S3 prediction log".
+Small note "Streamlit demo hosted on demand; API is separate from training".
+When no approved model exists there is no model prediction. With stale data respond unavailable rather than make fresh-data claims.
+All nodes planned/dashed.
+
+LANE 5: "5 • CHECK RESULTS & FEED BACK"
+"S3 prediction log + later real observations" → "Match delayed outcomes; measure accuracy, input changes and failures" → "Alert / request a new training job".
+A feedback arrow returns to lane 3 trigger, NEVER directly replaces the approved model.
+"CloudWatch — job logs and operational alerts" small supporting planned box (basic Lambda logs already exist; expanded monitoring planned).
+
+Bottom support strip:
+"GitHub → tests → Docker images in ECR → reviewed deployments (planned automation)"
+"Start/stop training and demo compute on demand. Stored data, disks and images still have storage costs."
+"Proposed AWS hosting: Mumbai (ap-south-1). No cloud resources are changed by this diagram."
+
+Most important visual message: Two parallel loops: growing data history, and periodic retraining from fixed labeled snapshots. Independent serving uses the last approved model while training runs. Use reliable readable arrows with no crossings through text. Keep distinction between existing local processing and future cloud processing unmistakable. If space constrained reduce explanatory sentences, retain all core nodes, status legend, fixed snapshot, +30-minute delayed label, evaluation gate, deployed approved model, feedback loop and paused schedule.
+
+CONNECTOR CORRECTION PROMPT (FINAL SELECTED IMAGE)
+
+Edit the system architecture image just generated. Preserve the five lanes, all node names, accurate current/planned/paused status, overall layout, and typography. Correct the connector logic. This is a technical dataflow diagram: arrows must identify actual input/output paths.
+
+Make exactly these connector corrections, adjusting space around the nodes as needed:
+1. In lane 2, add a clear labeled arrow from "S3 curated history — accepted Parquet" to lane 3 "Build features + delayed answers". Label "accepted history + future observations". This data connection is essential. Route in an empty gap or with an explicitly repeated dashed "Curated history (from Lane 2)" input box immediately above the feature builder and an incoming arrow. Do not allow a diagram with no data input to training.
+2. REMOVE the vertical dashed arrow from the lane 4 User to the lane 3 training trigger. A user asking for a prediction must NOT trigger training.
+3. In lane 5, remove the current feedback arrow pointing upward into the prediction logging area. Instead, route "Alert / request a new training job" into a clearly labeled small dashed proxy box "Training trigger (Lane 3)" using a direct horizontal arrow. The feedback returns only to retraining, never to prediction logging or model replacement.
+4. In lane 4, explicitly show the probability response returned from the prediction API toward Streamlit/User. Keep a separate branch from Prediction Lambda to prediction logging. A simple small leftward return arrow under User → Streamlit → API Gateway → Prediction Lambda, labeled "Probability response", is sufficient; clear enough not to confuse it with the logging arrow.
+5. Remove the vertical arrow from the top lane's raw S3 box that currently lands directly on the local accepted/excluded output. Lane 2's duplicate raw S3 box is the same store and is correctly branched into Download and New raw manifest event; retain those paths. You may label that duplicate "Same raw S3 store" to make it clear.
+6. Ensure Collector Lambda is blue solid like the already configured cloud component legend. Source GBFS is external, not a planned AWS deployment.
+7. Fix the lane 2 typo "Triger" to "Trigger".
+
+Everything else stays unchanged: collection schedule currently paused; local checks/cleaning implemented; all cloud processing, training, model release, API, UI and expanded monitoring planned. No model deployed yet. On-demand training and independent API serving. Make the edited image clean, readable, with no connectors crossing through text. Keep the fixed dataset, delayed labels, quality gate, rollback and cost notes.
+
+REFERENCE DOCUMENTATION
+
+https://docs.aws.amazon.com/lambda/latest/dg/with-s3.html
+https://docs.aws.amazon.com/lambda/latest/dg/images-create.html
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Stop_Start.html
+
