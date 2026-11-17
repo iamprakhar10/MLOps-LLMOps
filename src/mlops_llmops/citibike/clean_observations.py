@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import tempfile
+from typing import Any
 from uuid import uuid4
 
 import pyarrow as pa
@@ -49,8 +50,38 @@ OBSERVATION_SCHEMA = pa.schema([
 ], metadata={b"cleaning_rule_version": RULE_VERSION.encode()})
 
 
-def make_observation(checked, manifest, source_manifest, manifest_hash):
-    """Convert one checked station row into table columns and explicit exclusion reasons."""
+"""
+Type hints describe the expected objects; Python does not enforce them automatically.
+dict[str, Any] means string keys with mixed value types, including nested dictionaries.
+Path represents a file/folder location; Path | str allows a Path object or path text.
+| None allows a missing value; -> names the return type; -> None means no result object.
+"""
+
+
+def make_observation(
+    checked: dict[str, Any],
+    manifest: dict[str, Any],
+    source_manifest: str,
+    manifest_hash: str,
+) -> dict[str, Any]:
+    """Build one table row for one station and record any reasons to exclude it.
+
+    Args:
+        checked: Dictionary from the health checker containing its findings,
+            the station's original status, and its matching station information.
+        manifest: Dictionary read from this collection's manifest.json. Supplies
+            the collection ID, download times, and feed update times.
+        source_manifest: Manifest path relative to the raw folder, stored as text
+            so we can find this row's source later.
+        manifest_hash: SHA-256 text calculated from the manifest's bytes. It lets
+            us check later whether that source manifest has changed.
+
+    Returns:
+        A dictionary of column names and values for one Parquet row. Values include
+        counts, UTC datetime objects, true/false flags, and lists of issues.
+        Missing or unusable values become None. An empty exclusion_reasons list
+        means the row is accepted; this function does not write it to a file.
+    """
     observation = checked["observation"]
     information = checked["source_information"] or {}
     status_metadata = manifest["feeds"]["station_status"]
@@ -118,8 +149,18 @@ def make_observation(checked, manifest, source_manifest, manifest_hash):
     return row
 
 
-def write_cleaning_summary(summary, directory):
-    """Write counts, rules, and skipped collections as JSON and Markdown; return None."""
+def write_cleaning_summary(summary: dict[str, Any], directory: Path) -> None:
+    """Save the cleaning results in two report files inside an existing folder.
+
+    Args:
+        summary: Dictionary containing row counts, cleaning settings, exclusion
+            reasons, and details of the input collections.
+        directory: Path object pointing to the existing folder for the reports.
+
+    Returns:
+        None. The result is saved to cleaning_report.json for programs and
+        cleaning_report.md for us to read, rather than returned as an object.
+    """
     (directory / "cleaning_report.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     lines = ["# Citi Bike observation cleaning", "", f"Rule version: {summary['rule_version']}", "",
              "## Counts", "", "| Measure | Value |", "| --- | --- |"]
@@ -142,8 +183,31 @@ def write_cleaning_summary(summary, directory):
     (directory / "cleaning_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def clean_observations(raw_root=DEFAULT_OUTPUT, dates=None, output_root=None, max_age_minutes=15):
-    """Read local collections and save two Parquet tables plus reports; return the new output path."""
+def clean_observations(
+    raw_root: Path | str = DEFAULT_OUTPUT,
+    dates: list[str] | None = None,
+    output_root: Path | str | None = None,
+    max_age_minutes: float = 15,
+) -> Path:
+    """Read downloaded collections and create a new folder of tables and reports.
+
+    Check each collection's files, combine matching station records, and separate
+    usable rows from excluded rows. Save both groups as Parquet tables, keep the
+    exclusion reasons, and write reports. Leave the original raw files unchanged.
+
+    Args:
+        raw_root: Path object or path text for the local raw-data folder.
+        dates: List of UTC date strings, such as ['2026-11-11', '2026-11-12'].
+            None or an empty list selects all date folders available locally.
+        output_root: Path object or path text for the parent of the new output
+            folder. None uses data/citibike/cleaned in the project.
+        max_age_minutes: Positive number giving the oldest acceptable station
+            report at download time. Both 15 and 15.5 are valid values.
+
+    Returns:
+        A Path object pointing to the newly created output folder, not the tables
+        themselves. For example: Path('/project/data/citibike/cleaned/<run-id>').
+    """
     raw_root = Path(raw_root).resolve()
     output_root = Path(output_root or DEFAULT_OUTPUT.parent / "cleaned").resolve()
     if not raw_root.is_dir():
@@ -230,8 +294,17 @@ def clean_observations(raw_root=DEFAULT_OUTPUT, dates=None, output_root=None, ma
     return destination
 
 
-def main():
-    """Read command-line options, build the observation tables, and print their location; return None."""
+def main() -> None:
+    """Run the cleaner using options supplied in the terminal and print the results.
+
+    Takes no function arguments. Reads options such as --date and --raw-dir from
+    the command line, calls clean_observations(), and prints the counts and output
+    folder. If cleaning fails, prints the error and exits with a failure status.
+
+    Returns:
+        None on success. The tables and reports are saved to disk, and the summary
+        is printed in the terminal.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--date", action="append", dest="dates", help="UTC date YYYY-MM-DD; repeat to select several")

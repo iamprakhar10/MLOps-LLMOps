@@ -1032,3 +1032,82 @@ Data Lakes & Warehouses: Serving as the foundational storage layer for modern da
 Distributed Computing (Spark / Databricks): The native format for reading and writing distributed PySpark DataFrames across clusters.
 
 Feature Stores & ML Datasets: Saving processed training features, embeddings, and validation sets before they are passed into training loops (using tools like DuckDB, Polars, or PyTorch dataloaders).
+
+#### ASDF 11
+PyArrow is a Python library for working with tables in memory and reading/writing data files such as Parquet. It is the Python interface to Apache Arrow. Official introduction.
+
+In our cleaner, it turns the cleaned Python dictionaries into tables and saves those tables to disk.
+
+We use it in three steps:
+
+1. Define the table’s columns and their types
+pa.field("station_id", pa.string())
+pa.field("num_bikes_available", pa.int64())
+pa.field("is_renting", pa.bool_())
+These say:
+Column	Expected value
+station_id	Text
+num_bikes_available	Integer
+is_renting	True or False
+
+
+pa.schema(...) collects these definitions into the table’s structure. That keeps the accepted and excluded tables consistent, even when one contains no rows.
+
+2. Turn Python dictionaries into a table
+
+Our cleaning code first builds a list like:
+[
+    {"station_id": "123", "num_bikes_available": 5, ...},
+    {"station_id": "456", "num_bikes_available": 0, ...},
+]
+Then this existing line converts that list into a PyArrow table in memory:
+pa.Table.from_pylist(accepted_rows, schema=OBSERVATION_SCHEMA)
+Each dictionary becomes one row; its keys identify the columns.
+
+3. Save the table as Parquet
+accepted_writer.write_table(...)
+The writer was created using pq.ParquetWriter(...). It writes each collection’s table into the output file. We configured compression="zstd" to compress the saved data. PyArrow supports writing Parquet incrementally this way. Parquet documentation.
+
+Why use it here?
+- It preserves the column types we explicitly defined.
+- It writes compressed Parquet files directly.
+- We can process one collection at a time instead of holding the entire history in memory.
+- Later, we can read only the columns needed for training.
+The division of work is:
+Our Python rules → decide which observations are accepted/excluded
+PyArrow          → organize those observations into typed tables
+Parquet          → the file format used to store those tables
+
+
+1. pa.Table.from_pylist(...) creates a PyArrow Table object in memory. No file is saved at this point.
+2. pq.ParquetWriter(...).write_table(table) writes that table into a Parquet file on disk.
+List of Python dictionaries
+          ↓ PyArrow creates a table
+PyArrow Table object in memory
+          ↓ PyArrow writes the table
+.parquet file on disk
+In our code, pa and pq are both parts of PyArrow:
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+
+#### Stale data
+We ask: “How old was this information when we downloaded it?”
+
+For each station:
+age = status download time − station’s last_reported time
+Our current rule marks it stale when age exceeds 15 minutes.
+Station reported	Downloaded	Age	Result
+10:00	10:05	5 minutes	Passes freshness check
+09:40	10:05	25 minutes	Excluded as stale
+
+
+We also check the whole status document:
+feed age = status download time − status_feed_updated_at
+If that exceeds 15 minutes, every station row in that collection is excluded because the document itself is old.
+
+Why do this? Suppose a station reported 10 bikes at 09:40, stopped reporting, and we downloaded that old count at 10:05. Treating it as recent availability could mislead the model. We also shouldn’t use an old report as evidence of what happened at a later target time.
+
+We keep excluded observations with their reasons rather than deleting them.
+
+The 15-minute limit is our initial configurable choice. We compare against the original download time—not today—so valid historical observations do not become stale merely because we process them later.

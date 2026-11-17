@@ -1,0 +1,58 @@
+Use case: infographic-diagram.
+Create a crystal-clear educational image explaining EXACTLY three timestamp columns using two actual Citi Bike stations from the SAME downloaded collection. This is for a learner who confuses documents with station records. Plain English, prominent labels, large legible text. Wide high-resolution infographic on a light background, restrained orange for station information, blue for station status, and separate purple/teal marks for individual station reports. No decorative clutter or watermarks.
+
+Title: "Two documents. Two stations. Three kinds of time."
+Subtitle: "Real downloaded example • November 9, 2026 • All displayed clock times are IST (UTC+05:30)"
+
+TOP: Two large document illustrations side by side, clearly enclosing their own records and ONE update timestamp each.
+LEFT DOCUMENT:
+"station_information.json"
+"WHAT: station names, locations and capacities"
+Top-level badge: "last_updated = 1794221170"
+Human time prominently: "16:16:10"
+Arrow mapping: "→ information_feed_updated_at"
+Simple data table with two rows:
+"Station A: Linden Blvd & E 91 St | capacity 12"
+"Station B: 3 St & Hoyt St | capacity 53"
+Concise explanation: "ONE timestamp for the whole information document."
+"Records which published station details we used."
+"It does not tell us when bikes were counted or prove a name/capacity changed."
+
+RIGHT DOCUMENT:
+"station_status.json"
+"WHAT: bike counts, dock counts and operating flags"
+Top-level badge: "last_updated = 1794221111"
+Human time prominently: "16:15:11"
+Arrow mapping: "→ status_feed_updated_at"
+Data table with two station rows visibly INSIDE this document:
+"Station A: 10 bikes | 0 docks | last_reported 16:11:17"
+"Station B: 45 bikes | 2 docks | last_reported 16:12:38"
+Beside these two row times: "Each row's last_reported → last_reported_at"
+Explanation: "ONE feed update time, but a separate report time for EACH station."
+"Feed published/updated at 16:15:11 does not mean both stations reported at 16:15:11."
+For exactness original row report timestamps: A last_reported=1794220877, B last_reported=1794220958. Include these numbers only if comfortably legible; prioritize readable clock times.
+
+MIDDLE: A very prominent comparison table titled "What the cleaned rows preserve"
+Columns: "Station" | "information_feed_updated_at" | "status_feed_updated_at" | "last_reported_at"
+Row A: "Linden Blvd & E 91 St" | "16:16:10" | "16:15:11" | "16:11:17"
+Row B: "3 St & Hoyt St" | "16:16:10" | "16:15:11" | "16:12:38"
+Visually connect shared equal values within each of the first two time columns, and highlight distinct station-report values.
+Caption: "Same document → same feed timestamp for both rows. Different stations → report times can differ."
+
+BOTTOM: Simple chronological timeline with exactly these four events and readable labels:
+16:11:17 — "Station A reports 10 bikes"
+16:12:38 — "Station B reports 45 bikes"
+16:15:11 — "Status document updated"
+16:16:10 — "Information document updated"
+Label "Illustrated order is from this saved example; not a required order for every collection."
+Two short purpose statements next to timeline:
+"last_reported_at: When did this station report its state?"
+"status_feed_updated_at: How old was the published status document?"
+"information_feed_updated_at: Which published station-details document did we receive?"
+
+FOOTER:
+"These are publisher/source times, not download times."
+"Discovery is a third document that lists URLs. It is not either station document above."
+"Image shows selected fields. Companion JSON examples preserve EVERY field in both station records plus original document headers."
+
+Constraints: Make document-level scope vs station-row scope unmistakable. The downloaded source documents use last_updated and last_reported; the three descriptive _at names belong to the cleaned table, NOT raw downloads. Information and status feed update times differ because they are separate documents with their own source timestamps; same download collection does not make them equal. Do NOT invent extra timestamp types or train a model in the graphic. All dates/times and counts above must match exactly. Do not substitute illustrative stations or values. Avoid dense prose; use arrows, enclosing document boundaries, and compact tables. No claim these examples are current live data. Render long exact field names carefully, wrapping only at underscores if necessary.

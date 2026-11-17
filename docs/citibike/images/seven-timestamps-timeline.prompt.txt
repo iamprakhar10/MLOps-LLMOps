@@ -1,0 +1,88 @@
+Use case: scientific-educational infographic-diagram.
+Create one large, highly legible educational TIMELINE infographic for a Citi Bike ML project. The learner wants to understand exactly why seven timestamp columns exist, where their values come from, and what is known when predicting. Plain English, readable typography, generous spacing. Professional flat diagram, pale background, blue provider events, teal collector events, orange prediction moment, muted red future unknown. High-resolution portrait or tall landscape with enough room for all seven exact column names. No unnecessary branding, no decoration competing with text.
+
+Title: "Seven timestamps: what happened, when did we know?"
+Subtitle: "Illustrative times on the same day, all UTC. This is an example, not a deployed prediction pipeline."
+
+Composition: Main left area is a chronological vertical timeline, with exactly seven numbered event cards. Break the time axis where needed and label "Not to scale". Each card includes time, exact code column name, who records it, a basic explanation, and a short practical reason. Use these exact facts:
+1 — 09:50:00
+"information_feed_updated_at"
+"Provider timestamp: station-information feed last_updated"
+"Publisher updated station details: name, capacity, location."
+"Why keep it? Trace which published station details we used."
+Small tag: "Supporting metadata; no freshness rejection for this field in the current cleaner."
+
+2 — 09:59:00
+"last_reported_at"
+"Provider timestamp: station_status row last_reported"
+"Station reports 5 bikes."
+"Why keep it? This is the time of the reported station state."
+
+3 — 10:00:00
+"status_feed_updated_at"
+"Provider timestamp: station-status feed last_updated"
+"Publisher updates the overall status feed."
+"Why keep it? Check whether the whole feed was already old."
+Important: "A feed update does not mean every station reported at that time."
+
+4 — 10:01:00
+"collection_started_at"
+"Our collector records its start time in the manifest."
+"Collection begins; requests are made."
+"Why keep it? Check collection timing and investigate failures."
+
+5 — 10:01:02
+"received_at"
+"Our collector records status-response receipt in the manifest."
+"Our system receives the status saying: 5 bikes at 09:59."
+"Why keep it? We could not use THIS downloaded report before receipt."
+
+6 — 10:01:04
+"information_received_at"
+"Our collector records information-response receipt in the manifest."
+"Our system receives the matching station details: capacity 20."
+"Why keep it? Track when these particular station details became available."
+
+7 — 10:01:05
+"collection_completed_at"
+"Our collector records its completion time in the manifest."
+"Files and manifest have been written locally."
+"Why keep it? Check duration and that receipt times fall within the collection."
+Do NOT imply data is uploaded to S3 by this time.
+
+Continue arrow into a distinct orange marker at "10:01:05 — Example prediction time".
+Explain "Example only: assume these local inputs are ready to use after collection completes. A deployed system must wait until inputs are accessible; exact prediction-time rule is still to be agreed." This is NOT an eighth column in the existing cleaner.
+
+Right-side aligned educational panels:
+A. "What we KNOW at prediction time"
+- "Latest report: 5 bikes at 09:59"
+- "Docks: 15; capacity: 20; rentals allowed"
+- "Status received at 10:01:02"
+- "Report is now 125 seconds old"
+- "Earlier valid history, if already available"
+- "Prediction time supplies the hour / weekday"
+Clear emphasized sentence: "5 bikes is the latest reported count, not a guaranteed live count."
+
+B. "What we DO NOT KNOW yet"
+A red/dashed arrow from prediction time to "10:31:05 — prediction + 30 minutes".
+"Will the station have zero bikes?"
+"For training, match a valid future report around this time once it arrives."
+"Future bike count is the answer, never an input."
+"Matching tolerance has not yet been decided."
+Do not fabricate a model result/probability or imply model currently deployed.
+
+C. "Two different ages"
+"Cleaner: age at receipt = 10:01:02 - 09:59:00 = 122 seconds"
+"Default rule: exclude when age at receipt > 900 seconds (15 minutes)."
+"Prediction example: age now = 10:01:05 - 09:59:00 = 125 seconds"
+"The report gets older while we wait."
+"Archived data is checked against its original receipt time, not today's clock."
+No claim current prediction-age feature already implemented.
+
+Bottom takeaways in two concise lines:
+"Report time = when the station reported its state. Receipt time = when our system received that report."
+"All seven are kept for timing and traceability. They are NOT seven required model features."
+Additional small footer: "Provider values come from the feeds; our collector's values come from the manifest. Cleaner converts them to UTC columns. Raw files stay unchanged."
+Also make explicit somewhere in small plain text: "Collection times and feed update times can stay in metadata; repeating them in every row is optional."
+
+Accuracy and layout requirements: Exact filenames and column names readable, including long information_feed_updated_at and information_received_at; wrap code labels only at underscores if necessary without dropping characters. All arithmetic correct: 122 sec at receipt, 125 sec at example prediction, future target 10:31:05. Source timestamp order is illustrative; don't claim universal event ordering. No external system/network costs discussion. Keep the seven events visually dominant and all arrows clear. Prefer restrained diagram and concise labels over paragraphs.

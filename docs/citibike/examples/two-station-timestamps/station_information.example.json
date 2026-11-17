@@ -1,0 +1,55 @@
+{
+  "data": {
+    "stations": [
+      {
+        "station_id": "2235290248874043146",
+        "name": "Linden Blvd & E 91 St",
+        "short_name": "3437.03",
+        "lon": -73.9208,
+        "lat": 40.6546,
+        "region_id": "71",
+        "capacity": 12,
+        "rental_uris": {
+          "android": "https://bkn.lft.to/lastmile_qr_scan",
+          "ios": "https://bkn.lft.to/lastmile_qr_scan"
+        },
+        "rental_methods": [
+          "KEY",
+          "CREDITCARD"
+        ],
+        "has_kiosk": false,
+        "station_type": "classic",
+        "external_id": "2235290248874043146",
+        "electric_bike_surcharge_waiver": false,
+        "eightd_station_services": [],
+        "eightd_has_key_dispenser": false
+      },
+      {
+        "station_id": "66de2b2f-0aca-11e7-82f6-3863bb44ef7c",
+        "name": "3 St & Hoyt St",
+        "short_name": "4110.10",
+        "lon": -73.99364123,
+        "lat": 40.6777287,
+        "region_id": "71",
+        "capacity": 53,
+        "rental_uris": {
+          "android": "https://bkn.lft.to/lastmile_qr_scan",
+          "ios": "https://bkn.lft.to/lastmile_qr_scan"
+        },
+        "rental_methods": [
+          "KEY",
+          "CREDITCARD"
+        ],
+        "has_kiosk": true,
+        "station_type": "classic",
+        "external_id": "66de2b2f-0aca-11e7-82f6-3863bb44ef7c",
+        "electric_bike_surcharge_waiver": false,
+        "eightd_station_services": [],
+        "eightd_has_key_dispenser": false
+      }
+    ]
+  },
+  "last_updated": 1794221170,
+  "ttl": 60,
+  "version": "1.1"
+}
