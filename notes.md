@@ -1125,4 +1125,27 @@ So distinguish:
 We would need to compare successive downloaded records to measure how frequently our Citi Bike station details actually change.
 
 
-#### 
+#### cssc
+Question: but why choosing reported time as prediction time, it won't happen like this when we are making real predictions?
+
+Answer:
+The current code chooses collection completion time as prediction time. The station’s reported time remains separate.
+
+For example:
+Event	Time
+Station reports 5 bikes	10:00
+Collection finishes	10:05
+Our simulated prediction	10:05
+Future outcome we match	Around 10:35
+
+
+We chose collection completion because it is recorded for every batch. It lets us simulate predicting immediately after new data becomes ready.
+
+Your concern about real predictions is valid. A user might request a prediction at 10:08, using that same report:
+Prediction time: 10:08
+Latest station report: 10:00
+Report age now: 8 minutes
+Target time: 10:38
+Our current dataset only simulates predictions at collection completion times. It does not yet simulate requests arriving between collections.
+
+For the planned request-based API, we should prepare examples at simulated request times, selecting only the latest information actually available then and recalculating its age. Collection completion is a useful first replay assumption, but it does not fully represent that serving behavior.
