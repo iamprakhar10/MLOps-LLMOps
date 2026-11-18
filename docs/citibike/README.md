@@ -19,15 +19,17 @@ Predict the probability that a station will have **zero rentable bikes in
 | 1 — implemented | One-shot collector, run locally | Original feed responses and a verifiable manifest are saved |
 | 2 — configured manually | S3 + scheduled Lambda collection | Collections downloaded from S3 are available for inspection |
 | 3 — in progress | Health checks, curated data, DVC + S3 versions | Audit first, then prepare and version usable data |
-| 4 | Features, delayed labels, time-based evaluation, MLflow | Compare algorithms on the same frozen data and splits |
+| 4 — in progress | Local features and delayed labels implemented; evaluation and MLflow pending | Compare algorithms on the same frozen data and splits |
 | 5 | Registered model and cloud prediction API | Trace an API prediction to its features and model release |
 | 6 | Monitoring, CI/CD, rollback and teardown | Evaluate later outcomes, recover from failures, preserve evidence |
 
 The collector and Lambda upload code are implemented. S3, IAM, Lambda, and a
 five-minute schedule were configured manually in the AWS console. The local health
 checker inspects downloaded collections. The observation cleaner writes accepted
-and excluded Parquet tables; training labels and DVC versions are not implemented
-yet. A local report does not independently verify AWS configuration.
+and excluded Parquet tables. Local training preparation builds features and delayed
+labels for a recorded station cohort. Time-based splits, model training, DVC
+versions, and cloud preparation are not implemented yet. A local report does not
+independently verify AWS configuration.
 
 ## Where the data comes from
 
@@ -81,9 +83,13 @@ The manifest's original timestamps let us add those checks without losing proven
 ## Initial modeling contract
 
 - Observation key: station ID + source observation time. Receipt time is tracked separately.
-- Proposed label: zero rentable bikes at an eligible observation around `t + 30 minutes`.
-- Exact timing tolerance, operational exclusions, and cohort selection must be
-  finalized after inspecting the live feed. Missing/stale labels remain unknown.
+- Initial local label: zero rentable bikes in the closest usable station report
+  to `t + 30 minutes`, within a configurable +/-2.5-minute window.
+- Local prediction time is collection completion time. The first modeling cohort
+  is up to 100 station IDs selected from the first accepted batch; future outcomes
+  do not influence selection. Missing/stale/unavailable labels remain unknown.
+- These initial rules are recorded per preparation run. Cloud prediction timing
+  must use when inputs actually become accessible to that service.
 - Features may use only information received by prediction time.
 - Use time-based validation with label availability respected at split boundaries.
 - Compare persistence and station/time baselines before more complex algorithms.
@@ -178,3 +184,21 @@ files are closed. Every run gets a new folder, and raw data is not edited.
 These are observation tables, not training examples: no future label, feature
 window, gap filling, model fitting, DVC snapshot, or cloud upload is performed.
 The next step is reviewing the tables before fixing the label-matching contract.
+
+## Prepare local training examples
+
+```bash
+uv run python -m mlops_llmops.citibike.prepare_training \
+  --cleaned-dir data/citibike/cleaned/20261113T075549Z_a72ed6fb
+```
+
+Pass exactly one completed cleaning folder. This writes a new
+`data/citibike/training/<run-id>/` folder with training examples, skipped examples,
+reports, and a manifest identifying inputs, settings, the station cohort, and the
+exact model-input column list. Source Parquet files and raw collections stay unchanged.
+
+The first version uses current availability, report age at prediction time,
+New York hour/weekday, and the bike count known 15 minutes earlier. It matches a
+future station report around +30 minutes to create the answer. It does not train
+a model or create train/validation/test splits. See [the timing rules and column
+explanations](training-data.md) before using the output.
